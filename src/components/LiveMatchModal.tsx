@@ -11,8 +11,7 @@ import {
   COMMENTARY_KICKOFF,
   COMMENTARY_PLAYING,
 } from '@/lib/matchEvents'
-import { getKnockoutRoundLabel } from '@/lib/utils'
-import { cn } from '@/lib/utils'
+import { getKnockoutRoundLabel, cn } from '@/lib/utils'
 
 type Phase = 'kickoff' | 'playing' | 'fulltime' | 'penalties' | 'done'
 
@@ -87,7 +86,6 @@ export function LiveMatchModal({ match, onComplete }: LiveMatchModalProps) {
   const isUpset = !!winner && !!loser && winner.strength < loser.strength - 4
 
   const showContinue = (phase === 'fulltime' && !hasPens) || phase === 'penalties' || phase === 'done'
-  const isKnockout = !match.groupId
   const roundLabel = match.groupId ? `Group ${match.groupId} · Matchday ${match.matchday}` : getKnockoutRoundLabel(match.round)
 
   return (
