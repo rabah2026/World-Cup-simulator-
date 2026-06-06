@@ -14,10 +14,11 @@ type GroupCardProps = {
   group: Group
   standings: Standing[]
   onGroupUpdate: (group: Group) => void
+  expanded: boolean
+  onToggle: () => void
 }
 
-export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
-  const [expanded, setExpanded] = useState(false)
+export function GroupCard({ group, standings, onGroupUpdate, expanded, onToggle }: GroupCardProps) {
   const [liveMatch, setLiveMatch] = useState<Match | null>(null)
 
   const played = group.matches.filter((m) => m.status === 'played').length
@@ -25,7 +26,6 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
   const progress = played / total
   const complete = played === total
 
-  // Single match -> play live broadcast, apply on completion
   const handleSimulateMatch = (matchId: string) => {
     const m = group.matches.find((x) => x.id === matchId)
     if (!m || m.status === 'played') return
@@ -45,9 +45,7 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
   const handleSimulateAll = () => {
     const updated = {
       ...group,
-      matches: group.matches.map((m) =>
-        m.status === 'not_played' ? simulateGroupMatch(m) : m
-      ),
+      matches: group.matches.map((m) => (m.status === 'not_played' ? simulateGroupMatch(m) : m)),
     }
     onGroupUpdate(updated)
   }
@@ -64,27 +62,19 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
 
   return (
     <motion.div layout className="glass rounded-2xl overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-4 p-4"
-      >
-        {/* Group label */}
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+      <button onClick={onToggle} className="w-full flex items-center gap-4 p-4">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: complete ? 'rgba(0,208,132,0.15)' : 'rgba(255,255,255,0.08)' }}
         >
-          <span className={cn(
-            'text-sm font-black',
-            complete ? 'text-[#00D084]' : 'text-white',
-          )}>G{group.id}</span>
+          <span className={cn('text-sm font-black', complete ? 'text-[#00D084]' : 'text-white')}>G{group.id}</span>
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm font-bold text-white">{group.name}</span>
-            <span className="text-xs text-white/40">{played}/{total}</span>
+            <span className={cn('text-xs', complete ? 'text-[#00D084]' : 'text-white/40')}>{played}/{total}</span>
           </div>
-          {/* Progress bar */}
           <div className="w-full h-1 rounded-full bg-white/10">
             <motion.div
               className="h-full rounded-full bg-[#00D084]"
@@ -110,10 +100,8 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 flex flex-col gap-4">
-              {/* Compact standings */}
               <StandingsTable standings={standings} compact />
 
-              {/* Action buttons */}
               {!complete && (
                 <button
                   onClick={handleSimulateAll}
@@ -125,12 +113,9 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
               )}
 
               {complete && (
-                <div className="text-center text-xs text-[#00D084] font-medium py-1">
-                  Group stage complete
-                </div>
+                <div className="text-center text-xs text-[#00D084] font-medium py-1">Group stage complete</div>
               )}
 
-              {/* Match cards by matchday */}
               {[1, 2, 3].map((md) => {
                 const mdMatches = group.matches.filter((m) => m.matchday === md)
                 return (
@@ -157,11 +142,8 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Live match broadcast */}
       <AnimatePresence>
-        {liveMatch && (
-          <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />
-        )}
+        {liveMatch && <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />}
       </AnimatePresence>
     </motion.div>
   )

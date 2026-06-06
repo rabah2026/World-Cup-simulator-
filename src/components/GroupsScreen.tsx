@@ -1,12 +1,15 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronRight, Zap } from 'lucide-react'
+import { ChevronRight, Zap, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import type { Tournament, Group } from '@/types/tournament'
 import { calculateStandings, applyQualificationStatus, areAllGroupMatchesPlayed } from '@/lib/standings'
 import { simulateAllGroupMatches } from '@/lib/simulator'
 import { GroupCard } from './GroupCard'
+import { TopHeader } from './TopHeader'
+import { GROUP_ORDER } from '@/lib/worldCup2026'
+import { cn } from '@/lib/utils'
 
 type GroupsScreenProps = {
   tournament: Tournament
@@ -17,9 +20,29 @@ type GroupsScreenProps = {
 
 export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToast }: GroupsScreenProps) {
   const allComplete = useMemo(() => areAllGroupMatchesPlayed(tournament.groups), [tournament.groups])
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+
+  const toggle = (id: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const expandAll = () => setOpenGroups(new Set(tournament.groups.map((g) => g.id)))
+  const collapseAll = () => setOpenGroups(new Set())
+  const allOpen = openGroups.size === tournament.groups.length
+
+  const jump = (id: string) => {
+    setOpenGroups((prev) => new Set(prev).add(id))
+    setTimeout(() => {
+      document.getElementById(`group-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+  }
 
   const handleGroupUpdate = (updated: Group) => {
-    const newGroups = tournament.groups.map((g) => g.id === updated.id ? updated : g)
+    const newGroups = tournament.groups.map((g) => (g.id === updated.id ? updated : g))
     onUpdate({ ...tournament, groups: newGroups, updatedAt: new Date().toISOString() })
   }
 
@@ -29,34 +52,64 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
     showToast('Group stage complete. Third-place race decided.')
   }
 
-  const played = tournament.groups.reduce((sum, g) => sum + g.matches.filter((m) => m.status === 'played').length, 0)
-  const total = tournament.groups.reduce((sum, g) => sum + g.matches.length, 0)
+  const completionById = useMemo(() => {
+    const map: Record<string, boolean> = {}
+    for (const g of tournament.groups) map[g.id] = g.matches.every((m) => m.status === 'played')
+    return map
+  }, [tournament.groups])
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="px-5 pt-12 pb-6">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#00D084] animate-pulse" />
-            <span className="text-xs text-[#00D084] font-semibold uppercase tracking-widest">Group Stage</span>
-          </div>
-          <h1 className="text-2xl font-black text-white mb-1">12 Groups</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-1 rounded-full bg-white/10">
-              <motion.div
-                className="h-full rounded-full bg-[#00D084]"
-                initial={{ width: 0 }}
-                animate={{ width: `${(played / total) * 100}%` }}
-                transition={{ duration: 0.5 }}
+      <TopHeader
+        tournament={tournament}
+        eyebrow="Group Stage"
+        title="12 Groups"
+        subtitle="Top 2 of each group advance automatically"
+      />
+
+      {/* Quick-jump chips */}
+      <div className="px-5 mb-3">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {GROUP_ORDER.map((id) => (
+            <button
+              key={id}
+              onClick={() => jump(id)}
+              className="shrink-0 flex items-center gap-1.5 glass rounded-lg px-2.5 py-1.5"
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: completionById[id] ? '#00D084' : 'rgba(255,255,255,0.25)' }}
               />
-            </div>
-            <span className="text-xs text-white/40 shrink-0">{played}/{total} played</span>
-          </div>
-        </motion.div>
+              <span className="text-xs font-bold text-white/70">{id}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Quick actions */}
+      {/* Legend + expand control */}
+      <div className="px-5 mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {[
+            { c: '#00D084', l: 'Qualify' },
+            { c: '#D6A84F', l: '3rd place' },
+            { c: '#64748B', l: 'Out' },
+          ].map(({ c, l }) => (
+            <div key={l} className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: c }} />
+              <span className="text-[10px] text-white/40">{l}</span>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={allOpen ? collapseAll : expandAll}
+          className="flex items-center gap-1.5 text-[11px] text-white/50 font-medium glass px-2.5 py-1.5 rounded-lg"
+        >
+          {allOpen ? <ChevronsDownUp size={12} /> : <ChevronsUpDown size={12} />}
+          {allOpen ? 'Collapse' : 'Expand all'}
+        </button>
+      </div>
+
+      {/* Primary action */}
       <div className="px-5 flex gap-3 mb-4">
         {!allComplete && (
           <motion.button
@@ -72,7 +125,7 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
           <motion.button
             whileTap={{ scale: 0.96 }}
             onClick={onGenerateKnockout}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#00D084] text-black text-sm font-bold"
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#00D084] text-black text-sm font-bold glow-green"
           >
             Generate Round of 32
             <ChevronRight size={16} />
@@ -80,7 +133,7 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
         )}
         {allComplete && tournament.knockout.roundOf32.length > 0 && (
           <div className="flex-1 text-center py-3 rounded-xl glass text-xs text-[#00D084] font-semibold">
-            Round of 32 generated — go to Bracket
+            Round of 32 generated — open the Bracket
           </div>
         )}
       </div>
@@ -93,14 +146,18 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
           return (
             <motion.div
               key={group.id}
+              id={`group-${group.id}`}
+              className="scroll-mt-header"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
+              transition={{ delay: Math.min(i * 0.03, 0.3) }}
             >
               <GroupCard
                 group={group}
                 standings={standings}
                 onGroupUpdate={handleGroupUpdate}
+                expanded={openGroups.has(group.id)}
+                onToggle={() => toggle(group.id)}
               />
             </motion.div>
           )
