@@ -102,14 +102,10 @@ export function AppShell() {
           animate="center"
           exit="exit"
           transition={{ duration: 0.22, ease: 'easeInOut' }}
-          className={screen !== 'home' ? 'pb-24' : ''}
+          className={screen !== 'home' ? 'pb-28' : ''}
         >
           {screen === 'home' && (
-            <HomeScreen
-              hasSaved={hasSaved}
-              onStart={handleStart}
-              onContinue={handleContinue}
-            />
+            <HomeScreen hasSaved={hasSaved} onStart={handleStart} onContinue={handleContinue} />
           )}
           {screen === 'groups' && tournament && (
             <GroupsScreen
@@ -119,31 +115,18 @@ export function AppShell() {
               showToast={showToast}
             />
           )}
-          {screen === 'third-place' && tournament && (
-            <ThirdPlaceScreen tournament={tournament} />
-          )}
+          {screen === 'third-place' && tournament && <ThirdPlaceScreen tournament={tournament} />}
           {screen === 'knockout' && tournament && (
-            <KnockoutScreen
-              tournament={tournament}
-              onUpdate={handleTournamentUpdate}
-              showToast={showToast}
-            />
+            <KnockoutScreen tournament={tournament} onUpdate={handleTournamentUpdate} showToast={showToast} />
           )}
           {screen === 'champion' && tournament && (
-            <ChampionScreen
-              tournament={tournament}
-              onReset={handleReset}
-              showToast={showToast}
-            />
+            <ChampionScreen tournament={tournament} onReset={handleReset} showToast={showToast} />
           )}
           {!tournament && screen !== 'home' && (
             <div className="flex items-center justify-center min-h-screen">
               <div className="text-center">
                 <p className="text-white/40 text-sm">No tournament active.</p>
-                <button
-                  onClick={() => setScreen('home')}
-                  className="mt-4 px-5 py-2 glass rounded-xl text-sm text-white/70"
-                >
+                <button onClick={() => setScreen('home')} className="mt-4 px-5 py-2 glass rounded-xl text-sm text-white/70">
                   Go Home
                 </button>
               </div>
@@ -153,11 +136,7 @@ export function AppShell() {
       </AnimatePresence>
 
       {screen !== 'home' && (
-        <BottomNav
-          currentScreen={screen}
-          onChange={setScreen}
-          availability={availability}
-        />
+        <BottomNav currentScreen={screen} onChange={setScreen} availability={availability} />
       )}
 
       <Toast
