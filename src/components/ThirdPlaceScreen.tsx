@@ -14,6 +14,15 @@ type ThirdPlaceScreenProps = {
 export function ThirdPlaceScreen({ tournament }: ThirdPlaceScreenProps) {
   const allComplete = useMemo(() => areAllGroupMatchesPlayed(tournament.groups), [tournament.groups])
 
+  const thirds = useMemo(() => {
+    const raw = getThirdPlacedStandings(tournament.groups)
+    return [...raw].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference
+      return b.goalsFor - a.goalsFor
+    }).map((s, i) => ({ ...s, rank: i + 1 }))
+  }, [tournament.groups])
+
   if (!allComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -25,15 +34,6 @@ export function ThirdPlaceScreen({ tournament }: ThirdPlaceScreenProps) {
       </div>
     )
   }
-
-  const thirds = useMemo(() => {
-    const raw = getThirdPlacedStandings(tournament.groups)
-    return [...raw].sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points
-      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference
-      return b.goalsFor - a.goalsFor
-    }).map((s, i) => ({ ...s, rank: i + 1 }))
-  }, [tournament.groups])
 
   return (
     <div className="min-h-screen">
