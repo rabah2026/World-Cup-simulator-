@@ -209,7 +209,7 @@ export function LiveMatchModal({ match, onComplete }: LiveMatchModalProps) {
               animate={{ opacity: 1, x: 0 }}
               className={cn('flex items-center gap-2 text-xs', e.side === 'B' && 'flex-row-reverse text-right')}
             >
-              <span className="text-[#D6A84F] font-bold tabular-nums">{e.minute}'</span>
+              <span className="text-[#D6A84F] font-bold tabular-nums">{e.minute}&apos;</span>
               <span>{e.flag}</span>
               <span className="text-white/70 font-semibold">⚽ {e.teamShort}</span>
             </motion.div>
