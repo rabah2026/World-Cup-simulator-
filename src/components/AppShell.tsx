@@ -63,15 +63,18 @@ export function AppShell() {
   const handleTournamentUpdate = useCallback((updated: Tournament) => {
     setTournament(updated)
     save(updated)
-  }, [save])
-
-  const handleGenerateKnockout = useCallback(() => {
-    if (!tournament) return
-    const advanced = advanceKnockout(tournament)
-    handleTournamentUpdate(advanced)
-    setScreen('knockout')
-    showToast('Round of 32 unlocked.')
-  }, [tournament, handleTournamentUpdate, showToast])
+    // Auto-generate knockout bracket when all 72 group matches are done.
+    // Uses `updated` directly to avoid stale-closure issues with tournament state.
+    if (areAllGroupMatchesPlayed(updated.groups) && updated.knockout.roundOf32.length === 0) {
+      showToast('Group stage complete! Building the bracket...')
+      setTimeout(() => {
+        const advanced = advanceKnockout(updated)
+        setTournament(advanced)
+        save(advanced)
+        setScreen('knockout')
+      }, 1800)
+    }
+  }, [save, showToast])
 
   const handleReset = useCallback(() => {
     const t = createTournament()
@@ -115,8 +118,6 @@ export function AppShell() {
             <GroupsScreen
               tournament={tournament}
               onUpdate={handleTournamentUpdate}
-              onGenerateKnockout={handleGenerateKnockout}
-              showToast={showToast}
             />
           )}
           {screen === 'third-place' && tournament && (

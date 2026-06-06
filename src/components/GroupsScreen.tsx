@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronRight, Zap } from 'lucide-react'
+import { Zap, Loader2 } from 'lucide-react'
 import type { Tournament, Group } from '@/types/tournament'
 import { calculateStandings, applyQualificationStatus, areAllGroupMatchesPlayed } from '@/lib/standings'
 import { simulateAllGroupMatches } from '@/lib/simulator'
@@ -11,12 +11,11 @@ import { GroupCard } from './GroupCard'
 type GroupsScreenProps = {
   tournament: Tournament
   onUpdate: (t: Tournament) => void
-  onGenerateKnockout: () => void
-  showToast: (msg: string) => void
 }
 
-export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToast }: GroupsScreenProps) {
+export function GroupsScreen({ tournament, onUpdate }: GroupsScreenProps) {
   const allComplete = useMemo(() => areAllGroupMatchesPlayed(tournament.groups), [tournament.groups])
+  const knockoutGenerated = tournament.knockout.roundOf32.length > 0
 
   const handleGroupUpdate = (updated: Group) => {
     const newGroups = tournament.groups.map((g) => g.id === updated.id ? updated : g)
@@ -26,7 +25,7 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
   const handleSimulateAll = () => {
     const newGroups = tournament.groups.map((g) => simulateAllGroupMatches(g))
     onUpdate({ ...tournament, groups: newGroups, stage: 'group_stage_complete', updatedAt: new Date().toISOString() })
-    showToast('Group stage complete. Third-place race decided.')
+    // AppShell.handleTournamentUpdate detects completion and auto-navigates to knockout
   }
 
   const played = tournament.groups.reduce((sum, g) => sum + g.matches.filter((m) => m.status === 'played').length, 0)
@@ -68,17 +67,17 @@ export function GroupsScreen({ tournament, onUpdate, onGenerateKnockout, showToa
             Simulate All Groups
           </motion.button>
         )}
-        {allComplete && tournament.knockout.roundOf32.length === 0 && (
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={onGenerateKnockout}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#00D084] text-black text-sm font-bold"
+        {allComplete && !knockoutGenerated && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl glass border border-[#00D084]/30 text-[#00D084] text-sm font-semibold"
           >
-            Generate Round of 32
-            <ChevronRight size={16} />
-          </motion.button>
+            <Loader2 size={14} className="animate-spin" />
+            Generating bracket...
+          </motion.div>
         )}
-        {allComplete && tournament.knockout.roundOf32.length > 0 && (
+        {knockoutGenerated && (
           <div className="flex-1 text-center py-3 rounded-xl glass text-xs text-[#00D084] font-semibold">
             Round of 32 generated — go to Bracket
           </div>
