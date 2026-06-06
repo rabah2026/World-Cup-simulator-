@@ -2,14 +2,16 @@
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Lock } from 'lucide-react'
+import { Lock, Check, Crown } from 'lucide-react'
 import type { Tournament, KnockoutRound, Match } from '@/types/tournament'
 import { simulateKnockoutMatch } from '@/lib/simulator'
 import { advanceKnockout, isRoundComplete } from '@/lib/knockout'
 import { MatchCard } from './MatchCard'
 import { EmptyState } from './EmptyState'
 import { LiveMatchModal } from './LiveMatchModal'
+import { TopHeader } from './TopHeader'
 import { getKnockoutRoundShort, getKnockoutRoundLabel } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 type KnockoutScreenProps = {
   tournament: Tournament
@@ -31,23 +33,29 @@ type RoundKey = typeof roundKeyMap[keyof typeof roundKeyMap]
 const rounds: KnockoutRound[] = ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'third_place', 'final']
 
 export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScreenProps) {
-  const [activeRound, setActiveRound] = useState<KnockoutRound>('round_of_32')
+  const { knockout } = tournament
+
+  const deepestAvailable = useMemo<KnockoutRound>(() => {
+    const order: KnockoutRound[] = ['final', 'third_place', 'semi_final', 'quarter_final', 'round_of_16', 'round_of_32']
+    for (const r of order) {
+      if ((knockout[roundKeyMap[r]] ?? []).length > 0) return r
+    }
+    return 'round_of_32'
+  }, [knockout])
+
+  const [activeRound, setActiveRound] = useState<KnockoutRound>(deepestAvailable)
   const [liveMatch, setLiveMatch] = useState<Match | null>(null)
   const [liveKey, setLiveKey] = useState<RoundKey | null>(null)
 
-  const { knockout } = tournament
+  const roundMatches = useMemo(() => knockout[roundKeyMap[activeRound]] ?? [], [knockout, activeRound])
 
-  const roundMatches = useMemo(() => {
-    const key = roundKeyMap[activeRound]
-    return knockout[key] ?? []
-  }, [knockout, activeRound])
-
-  const isRoundAvailable = (r: KnockoutRound): boolean => {
-    const key = roundKeyMap[r]
-    return (knockout[key] ?? []).length > 0
+  const roundStatus = (r: KnockoutRound): 'locked' | 'active' | 'complete' => {
+    const matches = knockout[roundKeyMap[r]] ?? []
+    if (matches.length === 0) return 'locked'
+    if (matches.every((m) => m.status === 'played')) return 'complete'
+    return 'active'
   }
 
-  // Single match -> play live broadcast, apply + advance on completion
   const handleSimulate = (matchId: string) => {
     const key = roundKeyMap[activeRound]
     const m = knockout[key].find((x) => x.id === matchId)
@@ -84,9 +92,7 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
 
   const handleSimulateAll = () => {
     const key = roundKeyMap[activeRound]
-    const updatedMatches = knockout[key].map((m) =>
-      m.status === 'not_played' ? simulateKnockoutMatch(m) : m
-    )
+    const updatedMatches = knockout[key].map((m) => (m.status === 'not_played' ? simulateKnockoutMatch(m) : m))
     let updated: Tournament = {
       ...tournament,
       knockout: { ...knockout, [key]: updatedMatches },
@@ -109,39 +115,65 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
     )
   }
 
+  const roundPlayed = roundMatches.filter((m) => m.status === 'played').length
+
   return (
     <div className="min-h-screen">
-      <div className="px-5 pt-12 pb-4">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#D6A84F] animate-pulse" />
-            <span className="text-xs text-[#D6A84F] font-semibold uppercase tracking-widest">Knockout Stage</span>
-          </div>
-          <h1 className="text-2xl font-black text-white">The Bracket</h1>
-        </motion.div>
-      </div>
+      <TopHeader tournament={tournament} eyebrow="Knockout Stage" title="The Bracket" subtitle="32 teams. One trophy." accent="gold" />
 
-      {/* Round selector */}
+      {/* Champion banner */}
+      {tournament.stage === 'complete' && tournament.champion && (
+        <div className="px-5 mb-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-gold rounded-2xl px-4 py-3 flex items-center gap-3"
+          >
+            <Crown size={20} className="text-[#D6A84F]" />
+            <div>
+              <div className="text-[10px] text-[#D6A84F]/70 uppercase tracking-widest font-bold">Champions</div>
+              <div className="text-sm font-black text-white">
+                {tournament.champion.flagEmoji} {tournament.champion.name}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Round stepper */}
       <div className="px-5 mb-5">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {rounds.map((r) => {
-            const available = isRoundAvailable(r)
+        <div className="flex items-center justify-between">
+          {rounds.map((r, i) => {
+            const status = roundStatus(r)
             const active = activeRound === r
+            const available = status !== 'locked'
             return (
-              <button
-                key={r}
-                onClick={() => available && setActiveRound(r)}
-                disabled={!available}
-                className={`
-                  shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all
-                  ${active ? 'bg-[#00D084] text-black' : ''}
-                  ${!active && available ? 'glass text-white/70 hover:text-white' : ''}
-                  ${!available ? 'text-white/20 cursor-not-allowed' : ''}
-                `}
-              >
-                {!available && <Lock size={10} className="inline mr-1" />}
-                {getKnockoutRoundShort(r)}
-              </button>
+              <div key={r} className="flex items-center flex-1 last:flex-none">
+                <button
+                  onClick={() => available && setActiveRound(r)}
+                  disabled={!available}
+                  className="flex flex-col items-center gap-1.5"
+                >
+                  <div
+                    className={cn(
+                      'w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black transition-all',
+                      active && 'ring-2 ring-offset-2 ring-offset-[#05070D]',
+                      status === 'complete' && 'bg-[#00D084]/20 text-[#00D084]',
+                      status === 'active' && 'bg-[#D6A84F]/20 text-[#D6A84F]',
+                      status === 'locked' && 'bg-white/5 text-white/25',
+                    )}
+                    style={active ? { boxShadow: '0 0 0 2px #05070D, 0 0 0 4px rgba(0,208,132,0.5)' } : undefined}
+                  >
+                    {status === 'complete' ? <Check size={13} /> : status === 'locked' ? <Lock size={11} /> : getKnockoutRoundShort(r)}
+                  </div>
+                  <span className={cn('text-[8px] font-semibold', active ? 'text-white' : 'text-white/35')}>
+                    {getKnockoutRoundShort(r)}
+                  </span>
+                </button>
+                {i < rounds.length - 1 && (
+                  <div className="flex-1 h-px mx-1 mb-4" style={{ background: status === 'complete' ? 'rgba(0,208,132,0.4)' : 'rgba(255,255,255,0.1)' }} />
+                )}
+              </div>
             )
           })}
         </div>
@@ -149,12 +181,12 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
 
       {/* Round label */}
       <div className="px-5 mb-3 flex items-center justify-between">
-        <h2 className="text-base font-bold text-white">{getKnockoutRoundLabel(activeRound)}</h2>
+        <div>
+          <h2 className="text-base font-bold text-white">{getKnockoutRoundLabel(activeRound)}</h2>
+          <span className="text-[11px] text-white/40">{roundPlayed}/{roundMatches.length} decided</span>
+        </div>
         {roundMatches.some((m) => m.status === 'not_played') && (
-          <button
-            onClick={handleSimulateAll}
-            className="text-xs text-[#D6A84F] font-semibold glass px-3 py-1.5 rounded-lg"
-          >
+          <button onClick={handleSimulateAll} className="text-xs text-[#D6A84F] font-semibold glass px-3 py-1.5 rounded-lg">
             Simulate All
           </button>
         )}
@@ -167,22 +199,15 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
             key={match.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
+            transition={{ delay: Math.min(i * 0.04, 0.3) }}
           >
-            <MatchCard
-              match={match}
-              onSimulate={() => handleSimulate(match.id)}
-              knockout
-            />
+            <MatchCard match={match} onSimulate={() => handleSimulate(match.id)} knockout />
           </motion.div>
         ))}
       </div>
 
-      {/* Live match broadcast */}
       <AnimatePresence>
-        {liveMatch && (
-          <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />
-        )}
+        {liveMatch && <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />}
       </AnimatePresence>
     </div>
   )
