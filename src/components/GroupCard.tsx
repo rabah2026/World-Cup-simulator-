@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Zap, PlayCircle } from 'lucide-react'
-import type { Group, Standing } from '@/types/tournament'
+import type { Group, Standing, Match } from '@/types/tournament'
 import { StandingsTable } from './StandingsTable'
 import { MatchCard } from './MatchCard'
+import { LiveMatchModal } from './LiveMatchModal'
 import { simulateGroupMatch } from '@/lib/simulator'
 import { cn } from '@/lib/utils'
 
@@ -17,20 +18,28 @@ type GroupCardProps = {
 
 export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [liveMatch, setLiveMatch] = useState<Match | null>(null)
 
   const played = group.matches.filter((m) => m.status === 'played').length
   const total = group.matches.length
   const progress = played / total
   const complete = played === total
 
+  // Single match -> play live broadcast, apply on completion
   const handleSimulateMatch = (matchId: string) => {
+    const m = group.matches.find((x) => x.id === matchId)
+    if (!m || m.status === 'played') return
+    setLiveMatch(simulateGroupMatch(m))
+  }
+
+  const applyLiveResult = () => {
+    if (!liveMatch) return
     const updated = {
       ...group,
-      matches: group.matches.map((m) =>
-        m.id === matchId && m.status === 'not_played' ? simulateGroupMatch(m) : m
-      ),
+      matches: group.matches.map((m) => (m.id === liveMatch.id ? liveMatch : m)),
     }
     onGroupUpdate(updated)
+    setLiveMatch(null)
   }
 
   const handleSimulateAll = () => {
@@ -145,6 +154,13 @@ export function GroupCard({ group, standings, onGroupUpdate }: GroupCardProps) {
               })}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Live match broadcast */}
+      <AnimatePresence>
+        {liveMatch && (
+          <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />
         )}
       </AnimatePresence>
     </motion.div>

@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Lock } from 'lucide-react'
-import type { Tournament, KnockoutRound } from '@/types/tournament'
+import type { Tournament, KnockoutRound, Match } from '@/types/tournament'
 import { simulateKnockoutMatch } from '@/lib/simulator'
 import { advanceKnockout, isRoundComplete } from '@/lib/knockout'
 import { MatchCard } from './MatchCard'
 import { EmptyState } from './EmptyState'
+import { LiveMatchModal } from './LiveMatchModal'
 import { getKnockoutRoundShort, getKnockoutRoundLabel } from '@/lib/utils'
 
 type KnockoutScreenProps = {
@@ -16,7 +17,6 @@ type KnockoutScreenProps = {
   showToast: (msg: string) => void
 }
 
-type RoundKey = keyof typeof roundKeyMap
 const roundKeyMap = {
   round_of_32: 'roundOf32',
   round_of_16: 'roundOf16',
@@ -26,10 +26,14 @@ const roundKeyMap = {
   final: 'final',
 } as const
 
+type RoundKey = typeof roundKeyMap[keyof typeof roundKeyMap]
+
 const rounds: KnockoutRound[] = ['round_of_32', 'round_of_16', 'quarter_final', 'semi_final', 'third_place', 'final']
 
 export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScreenProps) {
   const [activeRound, setActiveRound] = useState<KnockoutRound>('round_of_32')
+  const [liveMatch, setLiveMatch] = useState<Match | null>(null)
+  const [liveKey, setLiveKey] = useState<RoundKey | null>(null)
 
   const { knockout } = tournament
 
@@ -43,28 +47,39 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
     return (knockout[key] ?? []).length > 0
   }
 
+  // Single match -> play live broadcast, apply + advance on completion
   const handleSimulate = (matchId: string) => {
     const key = roundKeyMap[activeRound]
-    const updatedMatches = knockout[key].map((m) =>
-      m.id === matchId ? simulateKnockoutMatch(m) : m
-    )
+    const m = knockout[key].find((x) => x.id === matchId)
+    if (!m || m.status === 'played') return
+    setLiveMatch(simulateKnockoutMatch(m))
+    setLiveKey(key)
+  }
+
+  const applyLiveResult = () => {
+    if (!liveMatch || !liveKey) return
+    const updatedMatches = knockout[liveKey].map((m) => (m.id === liveMatch.id ? liveMatch : m))
     let updated: Tournament = {
       ...tournament,
-      knockout: { ...knockout, [key]: updatedMatches },
+      knockout: { ...knockout, [liveKey]: updatedMatches },
       updatedAt: new Date().toISOString(),
     }
-    // Advance if round complete
     updated = advanceKnockout(updated)
     onUpdate(updated)
 
     if (isRoundComplete(updatedMatches)) {
       if (activeRound === 'semi_final') {
-        showToast('Semi-finals complete. Final unlocked.')
+        showToast('Semi-finals complete. The Final awaits.')
         setActiveRound('final')
       } else if (activeRound === 'final') {
         showToast('Champion crowned!')
+      } else {
+        showToast(`${getKnockoutRoundLabel(activeRound)} complete.`)
       }
     }
+
+    setLiveMatch(null)
+    setLiveKey(null)
   }
 
   const handleSimulateAll = () => {
@@ -108,7 +123,7 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
 
       {/* Round selector */}
       <div className="px-5 mb-5">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {rounds.map((r) => {
             const available = isRoundAvailable(r)
             const active = activeRound === r
@@ -162,6 +177,13 @@ export function KnockoutScreen({ tournament, onUpdate, showToast }: KnockoutScre
           </motion.div>
         ))}
       </div>
+
+      {/* Live match broadcast */}
+      <AnimatePresence>
+        {liveMatch && (
+          <LiveMatchModal match={liveMatch} onComplete={applyLiveResult} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
