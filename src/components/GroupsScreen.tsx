@@ -9,7 +9,6 @@ import { simulateAllGroupMatches } from '@/lib/simulator'
 import { GroupCard } from './GroupCard'
 import { TopHeader } from './TopHeader'
 import { GROUP_ORDER } from '@/lib/worldCup2026'
-import { cn } from '@/lib/utils'
 
 type GroupsScreenProps = {
   tournament: Tournament
