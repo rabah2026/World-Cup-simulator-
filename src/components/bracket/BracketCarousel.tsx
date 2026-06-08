@@ -31,19 +31,14 @@ const DATES: Record<string, string> = {
   'final-m1': 'Sun, Jul 19 · 22:00', 'third-place-m1': 'Sun, Jul 19 · 00:00',
 }
 
-type RoundDef = {
-  tab: ActiveTab
-  key: string
-  nextKey: string | null
-  label: string
-}
+type RoundDef = { tab: ActiveTab; key: string; nextKey: string | null }
 
 const ROUND_DEFS: RoundDef[] = [
-  { tab: 'R32', key: 'roundOf32',     nextKey: 'roundOf16',     label: 'Round of 32'    },
-  { tab: 'R16', key: 'roundOf16',     nextKey: 'quarterFinals', label: 'Round of 16'    },
-  { tab: 'QF',  key: 'quarterFinals', nextKey: 'semiFinals',    label: 'Quarter-Finals' },
-  { tab: 'SF',  key: 'semiFinals',    nextKey: 'final',         label: 'Semi-Finals'    },
-  { tab: 'F',   key: 'final',         nextKey: null,            label: 'Final'          },
+  { tab: 'R32', key: 'roundOf32',     nextKey: 'roundOf16'     },
+  { tab: 'R16', key: 'roundOf16',     nextKey: 'quarterFinals' },
+  { tab: 'QF',  key: 'quarterFinals', nextKey: 'semiFinals'    },
+  { tab: 'SF',  key: 'semiFinals',    nextKey: 'final'         },
+  { tab: 'F',   key: 'final',         nextKey: null            },
 ]
 
 export function BracketCarousel() {
@@ -98,31 +93,6 @@ export function BracketCarousel() {
 
   return (
     <div ref={containerRef} className="w-full">
-      {/* Round label + dot pills */}
-      <div className="px-5 pb-3 flex items-center justify-between">
-        <motion.p
-          key={currentIdx}
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-white font-bold text-[15px]"
-        >
-          {available[currentIdx]?.label}
-        </motion.p>
-
-        <div className="flex items-center gap-1.5">
-          {available.map((r, i) => (
-            <motion.button
-              key={r.key}
-              onClick={() => snapTo(i)}
-              animate={{ width: i === currentIdx ? 20 : 6, opacity: i === currentIdx ? 1 : 0.35 }}
-              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-              style={{ height: 6, borderRadius: 3, background: 'white', flexShrink: 0 }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Draggable track */}
       <motion.div
         drag="x"
         dragConstraints={{ left: -(available.length - 1) * pageWidth, right: 0 }}
@@ -137,6 +107,8 @@ export function BracketCarousel() {
           const nextMatches: Match[] = round.nextKey
             ? (((knockout as any)[round.nextKey] as Match[]) ?? [])
             : []
+          const thirdPlaceMatch: Match | null =
+            round.key === 'semiFinals' ? ((knockout as any).thirdPlace?.[0] ?? null) : null
 
           return (
             <RoundPage
@@ -146,6 +118,7 @@ export function BracketCarousel() {
               pageWidth={pageWidth}
               currentMatches={currentMatches}
               nextMatches={nextMatches}
+              thirdPlaceMatch={thirdPlaceMatch}
               roundKey={round.key}
             />
           )
@@ -161,17 +134,15 @@ type RoundPageProps = {
   pageWidth: number
   currentMatches: Match[]
   nextMatches: Match[]
+  thirdPlaceMatch: Match | null
   roundKey: string
 }
 
-function RoundPage({ index, x, pageWidth, currentMatches, nextMatches, roundKey }: RoundPageProps) {
+function RoundPage({
+  index, x, pageWidth, currentMatches, nextMatches, thirdPlaceMatch, roundKey,
+}: RoundPageProps) {
   const center = -index * pageWidth
-
-  const scale = useTransform(
-    x,
-    [center - pageWidth, center, center + pageWidth],
-    [0.88, 1.0, 0.88]
-  )
+  const scale = useTransform(x, [center - pageWidth, center, center + pageWidth], [0.88, 1.0, 0.88])
   const opacity = useTransform(
     x,
     [center - pageWidth * 1.2, center - pageWidth * 0.4, center, center + pageWidth * 0.4, center + pageWidth * 1.2],
@@ -185,20 +156,69 @@ function RoundPage({ index, x, pageWidth, currentMatches, nextMatches, roundKey 
         style={{ scale, opacity, width: pageWidth, flexShrink: 0 }}
         className="px-5 pb-6 pointer-events-none select-none"
       >
-        <motion.div style={{ pointerEvents: 'auto' }} className="flex flex-col items-center gap-4 py-4">
+        <div style={{ pointerEvents: 'auto' }} className="flex flex-col items-center gap-4 py-4">
           <div className="text-4xl mb-2">🏆</div>
           <div className="w-full">
-            <BracketMatch
-              match={currentMatches[0]}
-              dateLabel={DATES[currentMatches[0].id]}
-            />
+            <BracketMatch match={currentMatches[0]} dateLabel={DATES[currentMatches[0].id]} />
           </div>
-        </motion.div>
+        </div>
       </motion.div>
     )
   }
 
-  // Build pairs: every 2 current matches → 1 next-round match
+  // SF: special right column with Final + Third Place
+  if (roundKey === 'semiFinals') {
+    return (
+      <motion.div
+        style={{ scale, opacity, width: pageWidth, flexShrink: 0 }}
+        className="pointer-events-none select-none"
+      >
+        <div
+          className="overflow-y-auto px-4 pb-6"
+          style={{ maxHeight: 'calc(100dvh - 220px)', pointerEvents: 'auto', touchAction: 'pan-y' }}
+        >
+          <div className="flex gap-2">
+            {/* Left: 2 SF matches */}
+            <div className="flex-1 flex flex-col gap-3 min-w-0">
+              {currentMatches.map((m) => (
+                <BracketMatch key={m.id} match={m} dateLabel={DATES[m.id]} />
+              ))}
+            </div>
+
+            {/* Connector */}
+            <div className="w-2.5 flex flex-col items-center justify-center pointer-events-none">
+              <div className="w-px flex-1 my-6 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            </div>
+
+            {/* Right: Final + Third Place */}
+            <div className="flex-1 flex flex-col gap-4 min-w-0 justify-center">
+              {nextMatches[0] && (
+                <div>
+                  <div
+                    className="text-[10px] font-bold mb-1 px-0.5"
+                    style={{ color: '#D4A843' }}
+                  >
+                    Final
+                  </div>
+                  <BracketMatch match={nextMatches[0]} dateLabel={DATES[nextMatches[0].id]} />
+                </div>
+              )}
+              {thirdPlaceMatch && (
+                <div>
+                  <div className="text-[10px] font-bold text-white/45 mb-1 px-0.5">
+                    Third Place Match
+                  </div>
+                  <BracketMatch match={thirdPlaceMatch} dateLabel={DATES[thirdPlaceMatch.id]} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Default: pairs of 2 left matches → 1 right match
   const pairs: { m1: Match; m2: Match | null; next: Match | null }[] = []
   for (let i = 0; i < currentMatches.length; i += 2) {
     pairs.push({
@@ -215,46 +235,28 @@ function RoundPage({ index, x, pageWidth, currentMatches, nextMatches, roundKey 
     >
       <div
         className="overflow-y-auto px-4 pb-6 space-y-3"
-        style={{
-          maxHeight: 'calc(100dvh - 260px)',
-          pointerEvents: 'auto',
-          touchAction: 'pan-y',
-        }}
+        style={{ maxHeight: 'calc(100dvh - 220px)', pointerEvents: 'auto', touchAction: 'pan-y' }}
       >
         {pairs.map((pair, pairIdx) => (
-          <BracketPair
-            key={pairIdx}
-            m1={pair.m1}
-            m2={pair.m2}
-            next={pair.next}
-          />
+          <BracketPair key={pairIdx} m1={pair.m1} m2={pair.m2} next={pair.next} />
         ))}
       </div>
     </motion.div>
   )
 }
 
-type BracketPairProps = {
-  m1: Match
-  m2: Match | null
-  next: Match | null
-}
-
-function BracketPair({ m1, m2, next }: BracketPairProps) {
+function BracketPair({ m1, m2, next }: { m1: Match; m2: Match | null; next: Match | null }) {
   return (
     <div className="flex gap-2 items-stretch">
-      {/* Left: two stacked matches */}
       <div className="flex-1 flex flex-col gap-2 min-w-0">
         <BracketMatch match={m1} dateLabel={DATES[m1.id]} />
         {m2 && <BracketMatch match={m2} dateLabel={DATES[m2.id]} />}
       </div>
 
-      {/* Thin connector */}
       <div className="w-2.5 flex flex-col items-center justify-center pointer-events-none">
         <div className="w-px flex-1 my-4 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
       </div>
 
-      {/* Right: next-round match centered */}
       <div className="flex-1 flex flex-col justify-center min-w-0">
         {next ? (
           <BracketMatch match={next} dateLabel={DATES[next.id]} />

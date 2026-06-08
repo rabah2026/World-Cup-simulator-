@@ -5,10 +5,11 @@ import { motion } from 'framer-motion'
 import { useBracketStore } from '@/store/bracketStore'
 import { Header } from './Header'
 import { SegmentedTabs } from './SegmentedTabs'
+import { GroupStageView } from './groups/GroupStageView'
 import { BracketCarousel } from './bracket/BracketCarousel'
 
 export function AppShell() {
-  const { tournament, loadSaved } = useBracketStore()
+  const { tournament, activeTab, loadSaved } = useBracketStore()
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadSaved() }, [])
@@ -34,8 +35,12 @@ export function AppShell() {
         <SegmentedTabs />
       </div>
 
-      <div className="pt-3">
-        <BracketCarousel />
+      <div className="pt-2">
+        {activeTab === 'GS' ? (
+          <GroupStageView />
+        ) : (
+          <BracketCarousel />
+        )}
       </div>
     </div>
   )

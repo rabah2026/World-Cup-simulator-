@@ -7,7 +7,7 @@ import { simulateAllGroupMatches } from '@/lib/simulator'
 import { advanceKnockout } from '@/lib/knockout'
 import { simulateKnockoutMatch } from '@/lib/simulator'
 
-export type ActiveTab = 'R32' | 'R16' | 'QF' | 'SF' | 'F'
+export type ActiveTab = 'GS' | 'R32' | 'R16' | 'QF' | 'SF' | 'F'
 
 interface BracketState {
   tournament: Tournament | null
@@ -48,7 +48,7 @@ export const useBracketStore = create<BracketState>()(
   persist(
     (set, get) => ({
       tournament: null,
-      activeTab: 'R32',
+      activeTab: 'GS',
 
       loadSaved: () => {
         const saved = loadTournament()
