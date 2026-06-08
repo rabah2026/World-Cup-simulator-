@@ -1,116 +1,130 @@
 'use client'
-
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useBracketStore, type ActiveTab } from '@/store/bracketStore'
 
-type TabConfig = {
-  id: ActiveTab
-  label: string
-  shortLabel: string
-  locked: boolean
-  completed: boolean
-}
+const TEXT_TABS: { id: ActiveTab; label: string }[] = [
+  { id: 'GS', label: 'GS' },
+  { id: 'R32', label: 'R32' },
+  { id: 'R16', label: 'R16' },
+  { id: 'QF', label: 'QF' },
+  { id: 'SF', label: 'SF' },
+  { id: 'F', label: 'F' },
+]
+
+// Icon tabs represent bracket stages visually
+// Each shows lines of different density = different bracket stages
+const ICON_TABS: { id: ActiveTab; lines: number }[] = [
+  { id: 'GS', lines: 5 },
+  { id: 'R32', lines: 4 },
+  { id: 'R16', lines: 3 },
+  { id: 'QF', lines: 2 },
+  { id: 'SF', lines: 1 },
+  { id: 'F', lines: 0 }, // trophy icon for Final
+]
 
 export function SegmentedTabs() {
   const { activeTab, setActiveTab, tournament } = useBracketStore()
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const iconScrollRef = useRef<HTMLDivElement>(null)
 
   const knockout = tournament?.knockout
-  const gsComplete = tournament?.stage === 'group_stage_complete' || tournament?.stage === 'knockout' || tournament?.stage === 'complete'
-  const hasR32 = (knockout?.roundOf32?.length ?? 0) > 0
-  const hasR16 = (knockout?.roundOf16?.length ?? 0) > 0
-  const hasQF = (knockout?.quarterFinals?.length ?? 0) > 0
-  const hasSF = (knockout?.semiFinals?.length ?? 0) > 0
-  const hasF = (knockout?.final?.length ?? 0) > 0
-
-  const isRoundDone = (matches: any[] | undefined) =>
-    (matches?.length ?? 0) > 0 && matches!.every((m: any) => m.status === 'played')
-
-  const tabs: TabConfig[] = [
-    { id: 'GS', label: 'Groups', shortLabel: 'GS', locked: false, completed: gsComplete },
-    { id: 'R32', label: 'Round of 32', shortLabel: 'R32', locked: !hasR32, completed: isRoundDone(knockout?.roundOf32) },
-    { id: 'R16', label: 'Round of 16', shortLabel: 'R16', locked: !hasR16, completed: isRoundDone(knockout?.roundOf16) },
-    { id: 'QF', label: 'Quarter-Finals', shortLabel: 'QF', locked: !hasQF, completed: isRoundDone(knockout?.quarterFinals) },
-    { id: 'SF', label: 'Semi-Finals', shortLabel: 'SF', locked: !hasSF, completed: isRoundDone(knockout?.semiFinals) },
-    { id: 'F', label: 'Final', shortLabel: 'F', locked: !hasF, completed: isRoundDone(knockout?.final) },
-    { id: 'MY', label: 'My Bracket', shortLabel: 'My', locked: false, completed: false },
-  ]
-
-  // Auto-scroll active tab into view
-  useEffect(() => {
-    const container = scrollRef.current
-    if (!container) return
-    const activeEl = container.querySelector(`[data-tab="${activeTab}"]`) as HTMLElement
-    if (activeEl) {
-      const left = activeEl.offsetLeft - container.offsetWidth / 2 + activeEl.offsetWidth / 2
-      container.scrollTo({ left, behavior: 'smooth' })
-    }
-  }, [activeTab])
+  const isLocked = (tab: ActiveTab) => {
+    if (tab === 'GS') return false
+    if (tab === 'R32') return (knockout?.roundOf32?.length ?? 0) === 0
+    if (tab === 'R16') return (knockout?.roundOf16?.length ?? 0) === 0
+    if (tab === 'QF') return (knockout?.quarterFinals?.length ?? 0) === 0
+    if (tab === 'SF') return (knockout?.semiFinals?.length ?? 0) === 0
+    if (tab === 'F') return (knockout?.final?.length ?? 0) === 0
+    return true
+  }
 
   return (
-    <div className="sticky top-14 z-30 bg-gradient-to-b from-[#050A18] to-transparent pb-2">
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-1.5 px-4 overflow-x-auto py-2"
-        style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}
-      >
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id
-          const isLocked = tab.locked
-
+    <div className="z-40">
+      {/* Row 1: Text tabs */}
+      <div className="flex items-center px-4 py-2">
+        {TEXT_TABS.map((tab) => {
+          const active = activeTab === tab.id
+          const locked = isLocked(tab.id)
           return (
             <button
               key={tab.id}
-              data-tab={tab.id}
-              onClick={() => !isLocked && setActiveTab(tab.id)}
-              disabled={isLocked}
-              className="relative flex-shrink-0 rounded-full transition-all duration-200"
-              style={{ scrollSnapAlign: 'center' }}
+              onClick={() => !locked && setActiveTab(tab.id)}
+              disabled={locked}
+              className="flex-1 relative py-1.5 text-center"
             >
-              <div
-                className="px-3.5 py-1.5 rounded-full flex items-center gap-1.5"
-                style={{
-                  background: isActive
-                    ? '#FFFFFF'
-                    : isLocked
-                    ? 'rgba(255,255,255,0.03)'
-                    : 'rgba(255,255,255,0.07)',
-                  border: isActive
-                    ? 'none'
-                    : isLocked
-                    ? '1px solid rgba(255,255,255,0.05)'
-                    : '1px solid rgba(255,255,255,0.1)',
-                }}
-              >
-                {/* Completion dot */}
-                {tab.completed && !isActive && !isLocked && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#30D158] flex-shrink-0" />
-                )}
-
-                <span
-                  className="text-[12px] font-bold whitespace-nowrap"
-                  style={{
-                    color: isActive ? '#020815' : isLocked ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)',
-                  }}
-                >
-                  {tab.shortLabel}
-                </span>
-              </div>
-
-              {/* Active indicator spring */}
-              {isActive && (
+              {active && (
                 <motion.div
-                  layoutId="tab-indicator"
-                  className="absolute inset-0 rounded-full bg-white"
-                  style={{ zIndex: -1 }}
+                  layoutId="text-tab-pill"
+                  className="absolute inset-0 rounded-lg bg-white"
                   transition={{ type: 'spring', damping: 20, stiffness: 300 }}
                 />
+              )}
+              <span
+                className="relative z-10 text-[13px] font-semibold"
+                style={{
+                  color: active ? '#0A1560' : locked ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)',
+                }}
+              >
+                {tab.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Row 2: Icon tabs (bracket view selectors) */}
+      <div
+        ref={iconScrollRef}
+        className="flex items-center gap-2 px-4 pb-2 overflow-x-auto"
+        style={{ scrollbarWidth: 'none' }}
+      >
+        {ICON_TABS.map((tab) => {
+          const active = activeTab === tab.id
+          const locked = isLocked(tab.id)
+          return (
+            <button
+              key={tab.id}
+              onClick={() => !locked && setActiveTab(tab.id)}
+              disabled={locked}
+              className="flex-shrink-0 w-14 h-10 rounded-xl flex items-center justify-center transition-all"
+              style={{
+                background: active ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,0.25)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                opacity: locked ? 0.3 : 1,
+              }}
+            >
+              {tab.id === 'F' ? (
+                <span style={{ fontSize: 16, filter: active ? 'none' : 'grayscale(0.5)' }}>🏆</span>
+              ) : (
+                <BracketIcon lines={tab.lines} active={active} />
               )}
             </button>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function BracketIcon({ lines, active }: { lines: number; active: boolean }) {
+  const color = active ? '#0A1560' : 'rgba(255,255,255,0.7)'
+  const widths = [
+    [14, 14, 14, 14, 14],  // GS: 5 equal lines
+    [12, 12, 12, 12],       // R32: 4 lines
+    [14, 10, 14],           // R16: 3 lines
+    [14, 14],               // QF: 2 lines
+    [16],                   // SF: 1 line
+  ]
+  const lineWidths = widths[Math.max(0, 5 - lines - 1)] ?? [16]
+  return (
+    <div className="flex flex-col gap-1 items-center justify-center">
+      {lineWidths.map((w, i) => (
+        <div
+          key={i}
+          className="rounded-full"
+          style={{ width: w, height: 2, backgroundColor: color }}
+        />
+      ))}
     </div>
   )
 }

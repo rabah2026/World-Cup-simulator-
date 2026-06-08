@@ -7,6 +7,8 @@
   --navy-900: #050A18;
   --navy-800: #0A1628;
   --navy-700: #0F1F3C;
+  --cobalt-top: #1B2B8C;
+  --cobalt-bottom: #0A1560;
   --gold: #D4A843;
   --apple-blue: #0A84FF;
   --apple-green: #30D158;
@@ -19,11 +21,11 @@
 }
 
 html {
-  background: var(--navy-950);
+  background: var(--cobalt-bottom);
 }
 
 body {
-  background: radial-gradient(ellipse at top, #0F1F3C 0%, #050A18 60%, #020815 100%);
+  background: linear-gradient(180deg, #1B2B8C 0%, #0A1560 100%);
   background-attachment: fixed;
   min-height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
@@ -45,10 +47,16 @@ body {
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(22, 33, 56, 0.9) 0%, rgba(10, 22, 40, 0.95) 100%);
+  background: rgba(8, 15, 80, 0.65);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sticky-header-bg {
+  background: linear-gradient(180deg, #1B2B8C 0%, rgba(27,43,140,0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .glass-gold {
