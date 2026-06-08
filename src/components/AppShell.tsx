@@ -6,8 +6,7 @@ import { useBracketStore } from '@/store/bracketStore'
 import { Header } from './Header'
 import { SegmentedTabs } from './SegmentedTabs'
 import { GroupStageView } from './groups/GroupStageView'
-import { BracketView } from './bracket/BracketView'
-import { MyBracket } from './MyBracket'
+import { BracketCarousel } from './bracket/BracketCarousel'
 import { CelebrationOverlay } from './effects/CelebrationOverlay'
 
 const KNOCKOUT_TABS = ['R32', 'R16', 'QF', 'SF', 'F'] as const
@@ -22,9 +21,9 @@ export function AppShell() {
     return (
       <div className="min-h-dvh flex items-center justify-center">
         <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="text-5xl"
+          animate={{ scale: [1, 1.08, 1] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          className="text-6xl"
         >
           ⚽
         </motion.div>
@@ -36,25 +35,26 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh max-w-lg mx-auto relative overflow-x-hidden">
-      {/* Sticky header area with cobalt blue bg */}
+      {/* Sticky header — cobalt blue, stays opaque */}
       <div className="sticky top-0 z-40 sticky-header-bg">
         <Header />
         <SegmentedTabs />
       </div>
 
-      {/* Content */}
+      {/* Page content */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -16 }}
-          transition={{ duration: 0.18, ease: 'easeInOut' }}
-          className="pt-2"
+          key={activeTab === 'GS' ? 'gs' : 'bracket'}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="pt-3"
         >
           {activeTab === 'GS' && <GroupStageView />}
-          {isKnockout && <BracketView activeTab={activeTab} />}
-          {activeTab === 'MY' && <MyBracket />}
+
+          {/* All knockout tabs share ONE carousel — tabs just jump to the right page */}
+          {isKnockout && <BracketCarousel />}
         </motion.div>
       </AnimatePresence>
 
