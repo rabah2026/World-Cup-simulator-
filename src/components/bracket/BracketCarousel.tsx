@@ -1,12 +1,5 @@
 'use client'
-
-import { useRef, useState, useCallback, useEffect } from 'react'
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  animate,
-} from 'framer-motion'
+import { useRef, useEffect } from 'react'
 import type { Match } from '@/types/tournament'
 import { useBracketStore, type ActiveTab } from '@/store/bracketStore'
 import { BracketMatch } from './BracketMatch'
@@ -43,185 +36,125 @@ const ROUND_DEFS: RoundDef[] = [
 export function BracketCarousel() {
   const { tournament, activeTab, setActiveTab } = useBracketStore()
   const containerRef = useRef<HTMLDivElement>(null)
-  const [pageWidth, setPageWidth] = useState(390)
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const x = useMotionValue(0)
-
-  // Refs so native touch listeners never have stale closures
-  const stateRef = useRef({ currentIdx: 0, pageWidth: 390, availableLen: 0 })
-  const snapToRef = useRef<(i: number) => void>(() => {})
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const update = () => {
-      setPageWidth(el.offsetWidth)
-      stateRef.current.pageWidth = el.offsetWidth
-    }
-    update()
-    const obs = new ResizeObserver(update)
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
+  const isProgrammaticRef = useRef(false)
+  const activeTabRef = useRef(activeTab)
+  activeTabRef.current = activeTab
+  const mountedRef = useRef(false)
 
   const knockout = tournament?.knockout
   const available = ROUND_DEFS.filter(
     (r) => ((knockout as any)?.[r.key] as Match[] | undefined)?.length ?? 0 > 0
   )
+  const availableRef = useRef(available)
+  availableRef.current = available
 
-  // Keep stateRef in sync
-  stateRef.current.currentIdx = currentIdx
-  stateRef.current.availableLen = available.length
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const idx = available.findIndex((r) => r.tab === activeTab)
-    if (idx >= 0 && idx !== currentIdx) {
-      setCurrentIdx(idx)
-      stateRef.current.currentIdx = idx
-      animate(x, -idx * stateRef.current.pageWidth, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
-    }
-  }, [activeTab, available.length])
-
-  const snapTo = useCallback((idx: number) => {
-    const pw = stateRef.current.pageWidth
-    const clamped = Math.max(0, Math.min(idx, available.length - 1))
-    setCurrentIdx(clamped)
-    stateRef.current.currentIdx = clamped
-    const tab = available[clamped]?.tab
-    if (tab) setActiveTab(tab)
-    animate(x, -clamped * pw, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
-  }, [available, setActiveTab, x])
-
-  // Keep snapToRef current
-  snapToRef.current = snapTo
-
-  // ─── Native touch listeners (non-passive touchmove → can preventDefault) ─────
+  // Sync activeTab → scroll position (tab bar click or initial mount)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-
-    let startX = 0
-    let startY = 0
-    let startTime = 0
-    let axis: 'x' | 'y' | null = null
-
-    function onStart(e: TouchEvent) {
-      startX = e.touches[0].clientX
-      startY = e.touches[0].clientY
-      startTime = Date.now()
-      axis = null
+    const idx = available.findIndex((r) => r.tab === activeTab)
+    if (idx < 0) return
+    const w = el.offsetWidth || window.innerWidth
+    const target = idx * w
+    if (Math.abs(el.scrollLeft - target) < 2) { mountedRef.current = true; return }
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      el.scrollLeft = target // instant on first mount — no flash
+    } else {
+      isProgrammaticRef.current = true
+      el.scrollTo({ left: target, behavior: 'smooth' })
+      const t = setTimeout(() => { isProgrammaticRef.current = false }, 700)
+      return () => clearTimeout(t)
     }
+  }, [activeTab, available.length])
 
-    function onMove(e: TouchEvent) {
-      const dx = e.touches[0].clientX - startX
-      const dy = e.touches[0].clientY - startY
-
-      if (axis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-        axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
-      }
-
-      if (axis === 'x') {
-        // Must call preventDefault to stop iOS from stealing the gesture
-        e.preventDefault()
-        const { currentIdx: ci, pageWidth: pw, availableLen: al } = stateRef.current
-        const min = -(al - 1) * pw
-        let newX = -ci * pw + dx
-        if (newX > 0) newX = dx * 0.18
-        else if (newX < min) newX = min + (newX - min) * 0.18
-        x.set(newX)
-      }
+  // Sync user swipe → activeTab (debounced so we read after snap settles)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const scrollEl = el
+    let timer: ReturnType<typeof setTimeout>
+    function onScroll() {
+      if (isProgrammaticRef.current) return
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        const w = scrollEl.offsetWidth || window.innerWidth
+        const idx = Math.round(scrollEl.scrollLeft / w)
+        const tab = availableRef.current[idx]?.tab
+        if (tab && tab !== activeTabRef.current) setActiveTab(tab)
+      }, 80)
     }
-
-    function onEnd(e: TouchEvent) {
-      if (axis !== 'x') { axis = null; return }
-      const dx = e.changedTouches[0].clientX - startX
-      const vel = dx / Math.max(1, Date.now() - startTime)
-      const { currentIdx: ci, pageWidth: pw } = stateRef.current
-      if      (dx < -pw * 0.2 || vel < -0.4) snapToRef.current(ci + 1)
-      else if (dx >  pw * 0.2 || vel >  0.4) snapToRef.current(ci - 1)
-      else                                    snapToRef.current(ci)
-      axis = null
-    }
-
-    el.addEventListener('touchstart', onStart, { passive: true })
-    el.addEventListener('touchmove',  onMove,  { passive: false }) // non-passive = can preventDefault
-    el.addEventListener('touchend',   onEnd,   { passive: true })
-    return () => {
-      el.removeEventListener('touchstart', onStart)
-      el.removeEventListener('touchmove',  onMove)
-      el.removeEventListener('touchend',   onEnd)
-    }
-  }, [x]) // registered once on mount; state accessed via refs
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { clearTimeout(timer); el.removeEventListener('scroll', onScroll) }
+  }, [setActiveTab])
 
   if (!tournament || available.length === 0) return null
 
   return (
-    <div ref={containerRef} className="w-full" style={{ overflow: 'hidden' }}>
-      <motion.div style={{ x, display: 'flex', width: available.length * pageWidth }}>
-        {available.map((round, i) => {
-          const currentMatches = ((knockout as any)[round.key] as Match[]) ?? []
-          const nextMatches: Match[] = round.nextKey
-            ? (((knockout as any)[round.nextKey] as Match[]) ?? [])
-            : []
-          const thirdPlaceMatch: Match | null =
-            round.key === 'semiFinals' ? ((knockout as any).thirdPlace?.[0] ?? null) : null
-
-          return (
-            <RoundPage
-              key={round.key}
-              index={i}
-              x={x}
-              pageWidth={pageWidth}
-              currentMatches={currentMatches}
-              nextMatches={nextMatches}
-              thirdPlaceMatch={thirdPlaceMatch}
-              roundKey={round.key}
-            />
-          )
-        })}
-      </motion.div>
+    // Native CSS scroll-snap — the browser handles the swipe gesture in hardware.
+    // This bypasses the passive-listener restrictions that blocked our JS approach on iOS.
+    <div
+      ref={containerRef}
+      className="[&::-webkit-scrollbar]:hidden"
+      style={{
+        display: 'flex',
+        overflowX: 'scroll',
+        scrollSnapType: 'x mandatory',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+      } as React.CSSProperties}
+    >
+      {available.map((round) => {
+        const currentMatches = ((knockout as any)[round.key] as Match[]) ?? []
+        const nextMatches: Match[] = round.nextKey
+          ? (((knockout as any)[round.nextKey] as Match[]) ?? [])
+          : []
+        const thirdPlaceMatch: Match | null =
+          round.key === 'semiFinals' ? ((knockout as any).thirdPlace?.[0] ?? null) : null
+        return (
+          <RoundPage
+            key={round.key}
+            currentMatches={currentMatches}
+            nextMatches={nextMatches}
+            thirdPlaceMatch={thirdPlaceMatch}
+            roundKey={round.key}
+          />
+        )
+      })}
     </div>
   )
 }
 
 type RoundPageProps = {
-  index: number
-  x: ReturnType<typeof useMotionValue<number>>
-  pageWidth: number
   currentMatches: Match[]
   nextMatches: Match[]
   thirdPlaceMatch: Match | null
   roundKey: string
 }
 
-function RoundPage({
-  index, x, pageWidth, currentMatches, nextMatches, thirdPlaceMatch, roundKey,
-}: RoundPageProps) {
-  const center = -index * pageWidth
-  const scale = useTransform(x, [center - pageWidth, center, center + pageWidth], [0.88, 1.0, 0.88])
-  const opacity = useTransform(
-    x,
-    [center - pageWidth * 1.2, center - pageWidth * 0.4, center, center + pageWidth * 0.4, center + pageWidth * 1.2],
-    [0.3, 0.75, 1.0, 0.75, 0.3]
-  )
+function RoundPage({ currentMatches, nextMatches, thirdPlaceMatch, roundKey }: RoundPageProps) {
+  const pageStyle: React.CSSProperties = {
+    flexShrink: 0,
+    width: '100%',
+    scrollSnapAlign: 'start',
+  }
 
   if (currentMatches.length === 1) {
     return (
-      <motion.div style={{ scale, opacity, width: pageWidth, flexShrink: 0 }} className="px-5 pb-6">
+      <div style={pageStyle} className="px-5 pb-6">
         <div className="flex flex-col items-center gap-4 py-4">
           <div className="text-4xl mb-2">🏆</div>
           <div className="w-full">
             <BracketMatch match={currentMatches[0]} dateLabel={DATES[currentMatches[0].id]} />
           </div>
         </div>
-      </motion.div>
+      </div>
     )
   }
 
   if (roundKey === 'semiFinals') {
     return (
-      <motion.div style={{ scale, opacity, width: pageWidth, flexShrink: 0 }}>
+      <div style={pageStyle}>
         <div
           className="overflow-y-auto px-4 pb-6"
           style={{ maxHeight: 'calc(100dvh - 220px)', touchAction: 'pan-y' }}
@@ -251,7 +184,7 @@ function RoundPage({
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     )
   }
 
@@ -265,7 +198,7 @@ function RoundPage({
   }
 
   return (
-    <motion.div style={{ scale, opacity, width: pageWidth, flexShrink: 0 }}>
+    <div style={pageStyle}>
       <div
         className="overflow-y-auto px-4 pb-6 space-y-3"
         style={{ maxHeight: 'calc(100dvh - 220px)', touchAction: 'pan-y' }}
@@ -274,7 +207,7 @@ function RoundPage({
           <BracketPair key={pairIdx} m1={pair.m1} m2={pair.m2} next={pair.next} />
         ))}
       </div>
-    </motion.div>
+    </div>
   )
 }
 
