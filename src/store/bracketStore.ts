@@ -3,9 +3,6 @@ import { persist } from 'zustand/middleware'
 import type { Tournament, Match } from '@/types/tournament'
 import { createTournament } from '@/lib/tournament'
 import { saveTournament, loadTournament } from '@/lib/storage'
-import { simulateAllGroupMatches } from '@/lib/simulator'
-import { advanceKnockout } from '@/lib/knockout'
-import { simulateKnockoutMatch } from '@/lib/simulator'
 
 export type ActiveTab = 'GS' | 'R32' | 'R16' | 'QF' | 'SF' | 'F'
 
@@ -17,45 +14,41 @@ interface BracketState {
   setActiveTab: (tab: ActiveTab) => void
 }
 
-function buildFullTournament(): Tournament {
-  let t = createTournament()
+function emptyMatch(id: string, round: string): Match {
+  return { id, round, teamA: null, teamB: null, scoreA: null, scoreB: null, status: 'not_played' }
+}
 
-  // Simulate all group stage matches
-  t = { ...t, groups: t.groups.map((g) => simulateAllGroupMatches(g)) }
-
-  // Generate Round of 32 from group results
-  t = advanceKnockout(t)
-
-  // Simulate all knockout rounds through the final
-  const rounds: Array<keyof typeof t.knockout> = [
-    'roundOf32', 'roundOf16', 'quarterFinals', 'semiFinals', 'thirdPlace', 'final',
-  ]
-
-  for (const key of rounds) {
-    const matches = t.knockout[key] as Match[]
-    if (!matches || matches.length === 0) continue
-    const simulated = matches.map((m: Match) =>
-      m.status === 'played' ? m : simulateKnockoutMatch(m)
-    )
-    t = { ...t, knockout: { ...t.knockout, [key]: simulated } }
-    t = advanceKnockout(t)
+function buildCleanTournament(): Tournament {
+  const t = createTournament()
+  // Pre-generate all bracket slots with TBD teams so every tab is navigable.
+  // Group stage is unplayed (0 pts) — exactly like Apple Sports before the tournament.
+  return {
+    ...t,
+    knockout: {
+      roundOf32:    Array.from({ length: 16 }, (_, i) => emptyMatch(`r32-m${i + 1}`, 'round_of_32')),
+      roundOf16:    Array.from({ length: 8 },  (_, i) => emptyMatch(`round_of_16-m${i + 1}`, 'round_of_16')),
+      quarterFinals:Array.from({ length: 4 },  (_, i) => emptyMatch(`quarter_final-m${i + 1}`, 'quarter_final')),
+      semiFinals:   Array.from({ length: 2 },  (_, i) => emptyMatch(`semi_final-m${i + 1}`, 'semi_final')),
+      thirdPlace:   [emptyMatch('third-place-m1', 'third_place')],
+      final:        [emptyMatch('final-m1', 'final')],
+    },
   }
-
-  return t
 }
 
 export const useBracketStore = create<BracketState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       tournament: null,
       activeTab: 'GS',
 
       loadSaved: () => {
         const saved = loadTournament()
-        if (saved && saved.knockout.roundOf32.length > 0) {
+        // Accept saved data only if it looks like the clean (unplayed) format.
+        // Any tournament where the final has been played is old simulated data — reset it.
+        if (saved && saved.knockout.roundOf32.length > 0 && saved.knockout.final[0]?.status !== 'played') {
           set({ tournament: saved })
         } else {
-          const t = buildFullTournament()
+          const t = buildCleanTournament()
           saveTournament(t)
           set({ tournament: t })
         }
@@ -64,7 +57,7 @@ export const useBracketStore = create<BracketState>()(
       setActiveTab: (tab) => set({ activeTab: tab }),
     }),
     {
-      name: 'wc2026-bracket-store',
+      name: 'wc2026-bracket-v2',
       partialize: (state) => ({
         tournament: state.tournament,
       }),
