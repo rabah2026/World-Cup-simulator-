@@ -47,16 +47,17 @@ export function BracketCarousel() {
   const [currentIdx, setCurrentIdx] = useState(0)
   const x = useMotionValue(0)
 
-  // Touch gesture state
-  const touchStartX = useRef(0)
-  const touchStartY = useRef(0)
-  const touchStartTime = useRef(0)
-  const swipeAxis = useRef<'x' | 'y' | null>(null)
+  // Refs so native touch listeners never have stale closures
+  const stateRef = useRef({ currentIdx: 0, pageWidth: 390, availableLen: 0 })
+  const snapToRef = useRef<(i: number) => void>(() => {})
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const update = () => setPageWidth(el.offsetWidth)
+    const update = () => {
+      setPageWidth(el.offsetWidth)
+      stateRef.current.pageWidth = el.offsetWidth
+    }
     update()
     const obs = new ResizeObserver(update)
     obs.observe(el)
@@ -68,81 +69,96 @@ export function BracketCarousel() {
     (r) => ((knockout as any)?.[r.key] as Match[] | undefined)?.length ?? 0 > 0
   )
 
+  // Keep stateRef in sync
+  stateRef.current.currentIdx = currentIdx
+  stateRef.current.availableLen = available.length
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const idx = available.findIndex((r) => r.tab === activeTab)
     if (idx >= 0 && idx !== currentIdx) {
       setCurrentIdx(idx)
-      animate(x, -idx * pageWidth, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
+      stateRef.current.currentIdx = idx
+      animate(x, -idx * stateRef.current.pageWidth, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
     }
-  }, [activeTab, pageWidth, available.length])
+  }, [activeTab, available.length])
 
   const snapTo = useCallback((idx: number) => {
+    const pw = stateRef.current.pageWidth
     const clamped = Math.max(0, Math.min(idx, available.length - 1))
     setCurrentIdx(clamped)
+    stateRef.current.currentIdx = clamped
     const tab = available[clamped]?.tab
     if (tab) setActiveTab(tab)
-    animate(x, -clamped * pageWidth, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
-  }, [available, pageWidth, setActiveTab, x])
+    animate(x, -clamped * pw, { type: 'spring', damping: 32, stiffness: 300, restDelta: 0.5 })
+  }, [available, setActiveTab, x])
 
-  // ─── Native touch handlers (most reliable on mobile) ─────────────────────────
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-    touchStartY.current = e.touches[0].clientY
-    touchStartTime.current = Date.now()
-    swipeAxis.current = null
-  }, [])
+  // Keep snapToRef current
+  snapToRef.current = snapTo
 
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    const dx = e.touches[0].clientX - touchStartX.current
-    const dy = e.touches[0].clientY - touchStartY.current
+  // ─── Native touch listeners (non-passive touchmove → can preventDefault) ─────
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
 
-    // Determine axis once we have enough movement
-    if (swipeAxis.current === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-      swipeAxis.current = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+    let startX = 0
+    let startY = 0
+    let startTime = 0
+    let axis: 'x' | 'y' | null = null
+
+    function onStart(e: TouchEvent) {
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      startTime = Date.now()
+      axis = null
     }
 
-    if (swipeAxis.current === 'x') {
-      // Live-track finger position with elastic edges
-      const base = -currentIdx * pageWidth
-      const max = 0
-      const min = -(available.length - 1) * pageWidth
-      let newX = base + dx
-      if (newX > max) newX = dx * 0.18
-      else if (newX < min) newX = min + (newX - min) * 0.18
-      x.set(newX)
+    function onMove(e: TouchEvent) {
+      const dx = e.touches[0].clientX - startX
+      const dy = e.touches[0].clientY - startY
+
+      if (axis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+      }
+
+      if (axis === 'x') {
+        // Must call preventDefault to stop iOS from stealing the gesture
+        e.preventDefault()
+        const { currentIdx: ci, pageWidth: pw, availableLen: al } = stateRef.current
+        const min = -(al - 1) * pw
+        let newX = -ci * pw + dx
+        if (newX > 0) newX = dx * 0.18
+        else if (newX < min) newX = min + (newX - min) * 0.18
+        x.set(newX)
+      }
     }
-  }, [currentIdx, pageWidth, available.length, x])
 
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (swipeAxis.current !== 'x') { swipeAxis.current = null; return }
+    function onEnd(e: TouchEvent) {
+      if (axis !== 'x') { axis = null; return }
+      const dx = e.changedTouches[0].clientX - startX
+      const vel = dx / Math.max(1, Date.now() - startTime)
+      const { currentIdx: ci, pageWidth: pw } = stateRef.current
+      if      (dx < -pw * 0.2 || vel < -0.4) snapToRef.current(ci + 1)
+      else if (dx >  pw * 0.2 || vel >  0.4) snapToRef.current(ci - 1)
+      else                                    snapToRef.current(ci)
+      axis = null
+    }
 
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    const dt = Math.max(1, Date.now() - touchStartTime.current)
-    const velocity = dx / dt // px/ms
-
-    if (dx < -pageWidth * 0.2 || velocity < -0.4) snapTo(currentIdx + 1)
-    else if (dx > pageWidth * 0.2 || velocity > 0.4) snapTo(currentIdx - 1)
-    else snapTo(currentIdx)
-
-    swipeAxis.current = null
-  }, [currentIdx, pageWidth, snapTo])
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove',  onMove,  { passive: false }) // non-passive = can preventDefault
+    el.addEventListener('touchend',   onEnd,   { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove',  onMove)
+      el.removeEventListener('touchend',   onEnd)
+    }
+  }, [x]) // registered once on mount; state accessed via refs
 
   if (!tournament || available.length === 0) return null
 
   return (
-    // overflow:hidden clips the multi-page-wide track; touch handlers live here
-    <div
-      ref={containerRef}
-      className="w-full"
-      style={{ overflow: 'hidden' }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-    >
-      <motion.div
-        style={{ x, display: 'flex', width: available.length * pageWidth }}
-      >
+    <div ref={containerRef} className="w-full" style={{ overflow: 'hidden' }}>
+      <motion.div style={{ x, display: 'flex', width: available.length * pageWidth }}>
         {available.map((round, i) => {
           const currentMatches = ((knockout as any)[round.key] as Match[]) ?? []
           const nextMatches: Match[] = round.nextKey
@@ -190,7 +206,6 @@ function RoundPage({
     [0.3, 0.75, 1.0, 0.75, 0.3]
   )
 
-  // Final: single match centered
   if (currentMatches.length === 1) {
     return (
       <motion.div style={{ scale, opacity, width: pageWidth, flexShrink: 0 }} className="px-5 pb-6">
@@ -204,7 +219,6 @@ function RoundPage({
     )
   }
 
-  // SF: special right column — Final + Third Place
   if (roundKey === 'semiFinals') {
     return (
       <motion.div style={{ scale, opacity, width: pageWidth, flexShrink: 0 }}>
@@ -241,7 +255,6 @@ function RoundPage({
     )
   }
 
-  // Default: pairs of 2 left matches → 1 right match
   const pairs: { m1: Match; m2: Match | null; next: Match | null }[] = []
   for (let i = 0; i < currentMatches.length; i += 2) {
     pairs.push({
