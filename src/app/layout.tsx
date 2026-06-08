@@ -10,13 +10,13 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'World Cup 2026 Simulator',
-  description: 'Simulate the complete 2026 World Cup — 48 teams, 12 groups, Round of 32 through to the Final. Unofficial fan simulator.',
-  keywords: ['world cup 2026', 'simulator', 'football', 'soccer', 'bracket', 'fan app'],
-  authors: [{ name: 'CupSim 26' }],
+  title: 'World Cup 2026 · Bracket Simulator',
+  description: 'Simulate the complete 2026 FIFA World Cup — 48 teams, 12 groups, full bracket to the Final. Predict, simulate, share.',
+  keywords: ['world cup 2026', 'fifa', 'simulator', 'bracket', 'football', 'soccer'],
+  authors: [{ name: 'WC2026 Simulator' }],
   openGraph: {
-    title: 'World Cup 2026 Simulator',
-    description: 'Simulate every match. Crown your champion.',
+    title: 'World Cup 2026 Bracket Simulator',
+    description: 'Predict every match. Crown your champion.',
     type: 'website',
   },
   robots: 'index, follow',
@@ -27,17 +27,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#05070D',
+  themeColor: '#020815',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${inter.variable}`}>
-      <body className={`pitch-lines ${inter.className}`}>
+    <html lang="en" className={inter.variable}>
+      <body className={inter.className}>
         {children}
       </body>
     </html>
