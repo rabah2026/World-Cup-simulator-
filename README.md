@@ -1,7 +1,59 @@
-# World Cup 2026 Simulator
+# 🏆 World Cup 2026 Bracket Simulator
 
-A premium mobile-first fan simulator for the 2026 FIFA World Cup.
-Simulate the complete tournament — 48 teams, 12 groups, Round of 32 through to the Final.
+A premium **Apple Sports–inspired** FIFA World Cup 2026 bracket simulator. Dark navy glassmorphic UI, buttery Framer Motion animations, Predict Mode, confetti celebrations, and Chaos Mode easter egg.
+
+**Tech Stack:** Next.js 15 · TypeScript · Tailwind CSS · Framer Motion · Zustand · canvas-confetti
+
+---
+
+## 🚀 Quick Start
+
+```bash
+npm install && npm run dev
+# Open http://localhost:3000 (best at iPhone width 390px)
+```
+
+## ✨ Features
+
+| Feature | How to use |
+|---------|-----------|
+| Group Stage | Simulate matches per group or all at once |
+| Knockout Bracket | R32 → R16 → QF → SF → Final with connected flow |
+| **Predict Mode** | Tap the View/Predict pill in the header |
+| Hype Meter | Hover or tap any match card to see vibe stats |
+| Celebrations | Team-colored confetti on every advancement |
+| **Chaos Mode 🌀** | **Tap the ⚽ icon in the header 5 times** |
+| My Bracket | Track all your predictions + share them |
+
+## 📁 Structure
+
+```
+src/
+├── store/bracketStore.ts    # Zustand — tournament, predictions, easter eggs
+├── components/
+│   ├── AppShell.tsx         # Main orchestrator
+│   ├── Header.tsx           # Apple Sports top bar + mode toggle
+│   ├── SegmentedTabs.tsx    # GS|R32|R16|QF|SF|F|My tabs
+│   ├── bracket/             # BracketView + BracketMatch
+│   ├── groups/              # GroupStageView + GroupCard
+│   ├── effects/             # Celebration, Trophy, GoalFlash
+│   └── ui/                  # HypeMeter, LivePulse
+├── hooks/                   # useConfetti, useSound
+└── lib/                     # simulator, standings, knockout logic
+```
+
+## 🌐 Add Real API
+
+```typescript
+// Replace createTournament() with live data:
+const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+  headers: { 'X-Auth-Token': process.env.FOOTBALL_API_TOKEN! },
+})
+const data = await res.json()
+return mapApiResponseToTournament(data)
+```
+
+*Unofficial fan simulator · Not affiliated with FIFA or Apple*
 
 > **Unofficial fan-made simulator. Not affiliated with FIFA or the FIFA World Cup.**
 
