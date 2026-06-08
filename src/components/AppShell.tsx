@@ -29,7 +29,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-dvh max-w-lg mx-auto relative overflow-x-hidden">
+    <div className="min-h-dvh max-w-lg mx-auto relative">
       <div className="sticky top-0 z-40 sticky-header-bg">
         <Header />
         <SegmentedTabs />
