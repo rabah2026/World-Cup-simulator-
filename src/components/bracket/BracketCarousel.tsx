@@ -99,6 +99,7 @@ export function BracketCarousel() {
       style={{
         display: 'flex',
         overflowX: 'scroll',
+        overflowY: 'hidden',  // explicit axis — iOS routes horizontal gestures here
         scrollSnapType: 'x mandatory',
         WebkitOverflowScrolling: 'touch',
         scrollbarWidth: 'none',
@@ -157,7 +158,7 @@ function RoundPage({ currentMatches, nextMatches, thirdPlaceMatch, roundKey }: R
       <div style={pageStyle}>
         <div
           className="overflow-y-auto px-4 pb-6"
-          style={{ maxHeight: 'calc(100dvh - 220px)', touchAction: 'pan-y' }}
+          style={{ maxHeight: 'calc(100dvh - 220px)' }}
         >
           <div className="flex gap-2">
             <div className="flex-1 flex flex-col gap-3 min-w-0">
@@ -201,7 +202,7 @@ function RoundPage({ currentMatches, nextMatches, thirdPlaceMatch, roundKey }: R
     <div style={pageStyle}>
       <div
         className="overflow-y-auto px-4 pb-6 space-y-3"
-        style={{ maxHeight: 'calc(100dvh - 220px)', touchAction: 'pan-y' }}
+        style={{ maxHeight: 'calc(100dvh - 220px)' }}
       >
         {pairs.map((pair, pairIdx) => (
           <BracketPair key={pairIdx} m1={pair.m1} m2={pair.m2} next={pair.next} />
